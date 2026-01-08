@@ -1,0 +1,420 @@
+// Prisma Schema for Telemedicine Queue Manager
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================
+// ENUMS
+// ================================
+
+enum Role {
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+  PATIENT
+}
+
+enum AppointmentType {
+  IN_PERSON
+  VIDEO
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  IN_CONSULTATION
+  COMPLETED
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum NotificationType {
+  SMS
+  EMAIL
+  PUSH
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  INSURANCE_PENDING
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+}
+
+// ================================
+// MODELS
+// ================================
+
+model Clinic {
+  id                  String            @id @default(uuid())
+  name                String
+  address             String
+  city                String?
+  state               String?
+  zipCode             String?
+  country             String            @default("US")
+  phone               String
+  email               String
+  subscriptionTier    SubscriptionTier  @default(FREE)
+  timezone            String            @default("America/New_York")
+  businessHours       Json?             // { "monday": { "open": "09:00", "close": "17:00" }, ... }
+  logoUrl             String?
+  themeSettings       Json?             // { "primaryColor": "#2563EB", ... }
+  maxDoctors          Int               @default(1)
+  maxPatientsPerDay   Int               @default(20)
+  latitude            Float?
+  longitude           Float?
+  isActive            Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  users               User[]
+  doctors             Doctor[]
+  patients            Patient[]
+  appointments        Appointment[]
+  queueEntries        QueueEntry[]
+  notifications       Notification[]
+  videoSessions       VideoSession[]
+  settings            ClinicSettings?
+  analytics           ClinicAnalytics[]
+
+  @@index([subscriptionTier])
+  @@index([isActive])
+}
+
+model User {
+  id                  String          @id @default(uuid())
+  email               String          @unique
+  passwordHash        String
+  role                Role
+  clinicId            String
+  firstName           String
+  lastName            String
+  phone               String
+  profilePictureUrl   String?
+  isActive            Boolean         @default(true)
+  emailVerified       Boolean         @default(false)
+  emailVerificationToken String?      @unique
+  mfaEnabled          Boolean         @default(false)
+  mfaSecret           String?
+  fcmToken            String?         // Legacy - keeping for backwards compatibility
+  lastLoginAt         DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  clinic              Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor              Doctor?
+  patient             Patient?
+  notifications       Notification[]
+  deviceTokens        DeviceToken[]
+
+  @@index([email])
+  @@index([clinicId, role])
+  @@index([isActive])
+}
+
+model DeviceToken {
+  id                  String          @id @default(uuid())
+  userId              String
+  token               String          @unique
+  platform            Platform
+  isActive            Boolean         @default(true)
+  lastUsed            DateTime        @default(now())
+  createdAt           DateTime        @default(now())
+
+  // Relations
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([token])
+}
+
+model Doctor {
+  id                        String          @id @default(uuid())
+  userId                    String          @unique
+  clinicId                  String
+  specialization            String
+  licenseNumber             String          @unique
+  consultationFee           Float           @default(0)
+  availableDays             String[]        // ["monday", "tuesday", ...]
+  slotDurationMinutes       Int             @default(15)
+  maxPatientsPerDay         Int             @default(20)
+  videoConsultationEnabled  Boolean         @default(true)
+  bio                       String?         @db.Text
+  education                 String?
+  experienceYears           Int             @default(0)
+  rating                    Float           @default(0)
+  totalRatings              Int             @default(0)
+  isAcceptingAppointments   Boolean         @default(true)
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+
+  // Relations
+  user                      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic                    Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments              Appointment[]
+  schedules                 Schedule[]
+  queueEntries              QueueEntry[]
+  blockedDates              BlockedDate[]
+
+  @@index([clinicId])
+  @@index([isAcceptingAppointments])
+  @@index([specialization])
+}
+
+model Patient {
+  id                      String          @id @default(uuid())
+  userId                  String          @unique
+  clinicId                String
+  dateOfBirth             DateTime?
+  gender                  Gender?
+  bloodGroup              String?
+  medicalHistory          Json?           // { "conditions": ["diabetes", "hypertension"], "medications": [...] }
+  allergies               String[]
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  insuranceProvider       String?
+  insurancePolicyNumber   String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  // Relations
+  user                    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic                  Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments            Appointment[]
+
+  @@index([clinicId])
+}
+
+model Appointment {
+  id                    String              @id @default(uuid())
+  patientId             String
+  doctorId              String
+  clinicId              String
+  appointmentType       AppointmentType
+  scheduledDate         DateTime            @db.Date
+  scheduledTime         DateTime            @db.Time
+  status                AppointmentStatus   @default(SCHEDULED)
+  queueNumber           Int?                // Auto-generated daily per doctor
+  estimatedWaitMinutes  Int                 @default(0)
+  actualStartTime       DateTime?
+  actualEndTime         DateTime?
+  consultationNotes     String?             @db.Text
+  prescriptions         Json?               // [{ "medicine": "...", "dosage": "...", "frequency": "...", "duration": "..." }]
+  diagnosis             String?             @db.Text
+  followUpDate          DateTime?
+  videoRoomId           String?             @unique
+  cancellationReason    String?
+  cancelledBy           String?             // userId who cancelled
+  rating                Int?                // 1-5 stars
+  feedback              String?             @db.Text
+  paymentStatus         PaymentStatus       @default(PENDING)
+  paymentAmount         Float?
+  paymentId             String?             // Stripe/Razorpay payment intent ID
+  reminderSent24h       Boolean             @default(false)
+  reminderSent1h        Boolean             @default(false)
+  isEmergency           Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  // Relations
+  patient               Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor                Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic                Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  queueEntry            QueueEntry?
+  videoSession          VideoSession?
+  notifications         Notification[]
+
+  @@index([clinicId, scheduledDate])
+  @@index([doctorId, scheduledDate])
+  @@index([patientId])
+  @@index([status])
+  @@index([scheduledDate, scheduledTime])
+}
+
+model QueueEntry {
+  id                  String          @id @default(uuid())
+  appointmentId       String          @unique
+  doctorId            String
+  clinicId            String
+  queuePosition       Int
+  arrivalTime         DateTime        @default(now())
+  status              QueueStatus     @default(WAITING)
+  notifiedAt          DateTime?
+  calledAt            DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  appointment         Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor              Doctor          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic              Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, doctorId, status])
+  @@index([doctorId, status, queuePosition])
+}
+
+model Schedule {
+  id                  String          @id @default(uuid())
+  doctorId            String
+  dayOfWeek           Int             // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime           String          // "09:00"
+  endTime             String          // "17:00"
+  breakStartTime      String?         // "12:00"
+  breakEndTime        String?         // "13:00"
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  doctor              Doctor          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, dayOfWeek])
+  @@index([doctorId, isActive])
+}
+
+model BlockedDate {
+  id                  String          @id @default(uuid())
+  doctorId            String
+  date                DateTime        @db.Date
+  reason              String?
+  createdAt           DateTime        @default(now())
+
+  // Relations
+  doctor              Doctor          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date])
+  @@index([doctorId])
+}
+
+model Notification {
+  id                  String              @id @default(uuid())
+  userId              String
+  clinicId            String
+  appointmentId       String?
+  type                NotificationType
+  title               String
+  content             String              @db.Text
+  status              NotificationStatus  @default(PENDING)
+  scheduledFor        DateTime            @default(now())
+  sentAt              DateTime?
+  failureReason       String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic              Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointment         Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([scheduledFor, status])
+  @@index([clinicId])
+}
+
+model VideoSession {
+  id                  String          @id @default(uuid())
+  appointmentId       String          @unique
+  clinicId            String
+  roomId              String          @unique
+  token               String?
+  startTime           DateTime        @default(now())
+  endTime             DateTime?
+  durationMinutes     Int?
+  recordingUrl        String?
+  participants        Json?           // [{ "userId": "...", "joinedAt": "...", "leftAt": "..." }]
+  createdAt           DateTime        @default(now())
+
+  // Relations
+  appointment         Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinic              Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([clinicId])
+}
+
+model ClinicSettings {
+  id                                String          @id @default(uuid())
+  clinicId                          String          @unique
+  autoReminderEnabled               Boolean         @default(true)
+  reminderHoursBefore24h            Int             @default(24)
+  reminderHoursBefore1h             Int             @default(1)
+  queueRefreshIntervalSeconds       Int             @default(30)
+  allowWalkIns                      Boolean         @default(true)
+  maxWalkInsPerDay                  Int             @default(10)
+  videoConsultationPriceMultiplier  Float           @default(1.5)
+  cancellationWindowHours           Int             @default(24)
+  enableSmsNotifications            Boolean         @default(true)
+  enableEmailNotifications          Boolean         @default(true)
+  enablePushNotifications           Boolean         @default(true)
+  enableWhatsappNotifications       Boolean         @default(false)
+  defaultLanguage                   String          @default("en")
+  createdAt                         DateTime        @default(now())
+  updatedAt                         DateTime        @updatedAt
+
+  // Relations
+  clinic                            Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+model ClinicAnalytics {
+  id                      String          @id @default(uuid())
+  clinicId                String
+  date                    DateTime        @db.Date
+  totalAppointments       Int             @default(0)
+  completedAppointments   Int             @default(0)
+  cancelledAppointments   Int             @default(0)
+  noShowAppointments      Int             @default(0)
+  averageWaitMinutes      Float           @default(0)
+  totalRevenue            Float           @default(0)
+  newPatients             Int             @default(0)
+  videoConsultations      Int             @default(0)
+  inPersonConsultations   Int             @default(0)
+  createdAt               DateTime        @default(now())
+
+  // Relations
+  clinic                  Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, date])
+  @@index([clinicId, date])
+}
