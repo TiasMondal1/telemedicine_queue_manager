@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider } from 'react-native-paper';
 import Navigation from './src/navigation';
 import { useEffect } from 'react';
-import { setupNotifications } from './src/services/notifications';
+import { registerForPushNotifications, setupNotificationListeners } from './src/services/notifications';
+import { useAuthStore } from './src/store/authStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,18 +16,32 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function App() {
-  useEffect(() => {
-    // Setup push notifications
-    setupNotifications();
-  }, []);
+function AppContent() {
+  const { isAuthenticated } = useAuthStore();
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Register for push notifications and setup listeners
+      registerForPushNotifications();
+      const cleanup = setupNotificationListeners();
+      return cleanup;
+    }
+  }, [isAuthenticated]);
+
+  return (
+    <>
+      <Navigation />
+      <StatusBar style="auto" />
+    </>
+  );
+}
+
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <PaperProvider>
         <SafeAreaProvider>
-          <Navigation />
-          <StatusBar style="auto" />
+          <AppContent />
         </SafeAreaProvider>
       </PaperProvider>
     </QueryClientProvider>

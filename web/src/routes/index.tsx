@@ -7,12 +7,19 @@ import Register from '../pages/Register';
 // Import pages
 import BookAppointment from '../pages/patient/BookAppointment';
 import MyAppointments from '../pages/patient/MyAppointments';
-
-// Placeholder components - to be implemented
-const PatientDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Patient Dashboard</h1></div>;
-const DoctorQueue = () => <div className="p-8"><h1 className="text-2xl font-bold">Doctor Queue</h1></div>;
-const ReceptionistQueue = () => <div className="p-8"><h1 className="text-2xl font-bold">Receptionist Queue</h1></div>;
-const AdminDashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Admin Dashboard</h1></div>;
+import DoctorQueue from '../pages/doctor/DoctorQueue';
+import QueueDashboard from '../pages/receptionist/QueueDashboard';
+import VideoRoom from '../pages/video/VideoRoom';
+import Notifications from '../pages/Notifications';
+import PatientDashboard from '../pages/patient/PatientDashboard';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import UserManagement from '../pages/admin/UserManagement';
+import Reports from '../pages/admin/Reports';
+import PaymentCheckout from '../pages/patient/PaymentCheckout';
+import PaymentSuccess from '../pages/patient/PaymentSuccess';
+import PaymentHistory from '../pages/patient/PaymentHistory';
+import Prescriptions from '../pages/doctor/Prescriptions';
+import Settings from '../pages/admin/Settings';
 
 export default function AppRoutes() {
   const { isAuthenticated, user } = useAuthStore();
@@ -54,6 +61,30 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/payment/checkout"
+        element={
+          <ProtectedRoute allowedRoles={['PATIENT']}>
+            <PaymentCheckout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payment/success"
+        element={
+          <ProtectedRoute allowedRoles={['PATIENT']}>
+            <PaymentSuccess />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payment/history"
+        element={
+          <ProtectedRoute>
+            <PaymentHistory />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected routes - Doctor */}
       <Route
@@ -64,13 +95,21 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/doctor/prescriptions"
+        element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <Prescriptions />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected routes - Receptionist */}
       <Route
         path="/receptionist/queue"
         element={
           <ProtectedRoute allowedRoles={['RECEPTIONIST', 'ADMIN']}>
-            <ReceptionistQueue />
+            <QueueDashboard />
           </ProtectedRoute>
         }
       />
@@ -81,6 +120,50 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <UserManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}>
+            <Reports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Video Call Route */}
+      <Route
+        path="/video/:appointmentId"
+        element={
+          <ProtectedRoute>
+            <VideoRoom />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Notifications Route */}
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <Notifications />
           </ProtectedRoute>
         }
       />

@@ -8,7 +8,9 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import PatientDashboardScreen from '../screens/patient/DashboardScreen';
 import BookAppointmentScreen from '../screens/patient/BookAppointmentScreen';
 import MyAppointmentsScreen from '../screens/patient/MyAppointmentsScreen';
+import QueueStatusScreen from '../screens/patient/QueueStatusScreen';
 import DoctorQueueScreen from '../screens/doctor/QueueScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -28,6 +30,11 @@ function PatientTabs() {
         options={{ title: 'Dashboard', tabBarIcon: ({ color }) => '🏠' }}
       />
       <Tab.Screen 
+        name="QueueStatus" 
+        component={QueueStatusScreen}
+        options={{ title: 'Queue', tabBarIcon: ({ color }) => '⏱️' }}
+      />
+      <Tab.Screen 
         name="BookAppointment" 
         component={BookAppointmentScreen}
         options={{ title: 'Book', tabBarIcon: ({ color }) => '📅' }}
@@ -36,6 +43,11 @@ function PatientTabs() {
         name="MyAppointments" 
         component={MyAppointmentsScreen}
         options={{ title: 'Appointments', tabBarIcon: ({ color }) => '📋' }}
+      />
+      <Tab.Screen 
+        name="Notifications" 
+        component={NotificationsScreen}
+        options={{ title: 'Notifications', tabBarIcon: ({ color }) => '🔔' }}
       />
     </Tab.Navigator>
   );
